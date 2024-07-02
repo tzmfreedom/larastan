@@ -20,6 +20,8 @@ use PHPStan\Type\Generic\GenericObjectType;
 use PHPStan\Type\Generic\TemplateObjectType;
 use PHPStan\Type\IntegerType;
 use PHPStan\Type\ObjectType;
+use PHPStan\Type\Type;
+use PHPStan\Type\VoidType;
 
 use function array_key_exists;
 use function in_array;
@@ -144,7 +146,7 @@ final class EloquentBuilderForwardsCallsExtension implements MethodsClassReflect
 
         $parametersAcceptor = ParametersAcceptorSelector::selectSingle($ref->getVariants());
 
-        if (in_array($methodName, $this->builderHelper->passthru, true)) {
+        if ($this->isReturnDefinedType($methodName, $parametersAcceptor->getReturnType())) {
             $returnType = $parametersAcceptor->getReturnType();
         } elseif ($classReflection->isGeneric()) {
             $returnType = new GenericObjectType($classReflection->getName(), [$modelType]);
@@ -161,5 +163,20 @@ final class EloquentBuilderForwardsCallsExtension implements MethodsClassReflect
             $returnType,
             $parametersAcceptor->isVariadic(),
         );
+    }
+
+    private function isReturnDefinedType(string $methodName, Type $returnType): bool
+    {
+        if (in_array($methodName, $this->builderHelper->passthru, true)) {
+            return true;
+        }
+
+        if ((new VoidType())->equals($returnType)) {
+            return false;
+        }
+
+        return !(new ObjectType(EloquentBuilder::class))
+            ->isSuperTypeOf($returnType)
+            ->yes();
     }
 }
